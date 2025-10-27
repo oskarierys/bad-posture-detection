@@ -106,10 +106,56 @@ class PostureModelTrainer:
         return X_test_scaled, y_test, y_pred
     
     def plot_confusion_matrix(self, cm):
-        # TODO: Implement confusion matrix plotting
+        plt.figure(figsize=(14, 14))
+        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+                    xticklabels=self.label_names,
+                    yticklabels=self.label_names,
+                    cbar_kws={'label': 'Count'})
+        
+        plt.title('Confusion Matrix', fontsize=14, fontweight='bold')
+        plt.ylabel('True Label', fontsize=12)
+        plt.xlabel('Predicted Label', fontsize=12)
+        plt.tight_layout()
+
+        os.makedirs('plots', exist_ok=True)
+        save_path = 'plots/confusion_matrix.png'
+        plt.savefig(save_path, dpi=200)
+        plt.close()
+        print(f"Confusion matrix saved to {save_path}")
 
     def plot_feature_importance(self):
-        # TODO: Implement feature importance plotting
+        importances = self.model.feature_importances_
+        indices = np.argsort(importances)[::-1]
+
+        plt.figure(figsize=(14, 14))
+        plt.title("Feature Importances", fontsize=14, fontweight='bold')
+        plt.bar(range(len(importances)), importances[indices], align='center', color='olivedrab')
+        plt.xticks(range(len(importances)), [self.features_name[i] for i in indices], rotation=45, ha='right')
+        plt.ylabel('Importance Score', fontsize=12)
+        plt.xlabel('Features', fontsize=12)
+        plt.grid(axis='y', alpha=0.25)
+        plt.tight_layout()
+
+        os.makedirs('plots', exist_ok=True)
+        save_path = 'plots/feature_importance.png'
+        plt.savefig(save_path, dpi=200)
+        plt.close()
+        print(f"Feature importance plot saved to {save_path}")
+
+        print("Feature importances ranking:")
+        for i in range(len(importances)):
+            idx = indices[i]
+            bar = '█' * int(importances[idx] * 50)
+            print(f"{i+1:2d}. {self.feature_names[idx]:25s} {importances[idx]:.4f} {bar}")
 
     def save_model(self):
         # TODO: Implement model saving
+
+    def run(self):
+        # TODO: Implement the main run logic
+
+def main():
+    # TODO: Implement main function to run the trainer
+
+if __name__ == "__main__":
+    main()

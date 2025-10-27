@@ -134,22 +134,6 @@ class PostureDetectionDatasetCollector:
     def create_ui(self, image, current_label=None):
         h, w = image.shape[:2]
 
-        cv2.rectangle(image, (10, 10), (w-10, 100), (0, 0, 0), -1)
-        cv2.rectangle(image, (10, 10), (w-10, 100), (255, 255, 255), 2)
-
-        instructions = [
-            "Collect Dataset:"
-            "1 - Correct Posture"
-            "2 - Bad Head Position"
-            "3 - Bad Upper Body Position"
-            "s - Save Dataset"
-            "q - Quit"
-        ]
-
-        y = 40
-        for option in instructions:
-            cv2.putText(image, option, (20, y), cv2.FONT_HERSHEY_DUPLEX, 0.6, (255, 255, 255), 1)
-
         stats_y = 250
         cv2.rectangle(image, (10, stats_y), (300, stats_y+120), (50, 50, 50), -1)
         cv2.putText(image, "Dataset Stats:", (20, stats_y + 25), cv2.FONT_HERSHEY_DUPLEX, 0.6, (255, 255, 255), 2)
@@ -172,7 +156,7 @@ class PostureDetectionDatasetCollector:
                 'bad_upper_body_position': (0, 0, 255)
             }
             colour = label_colours.get(current_label, (255, 255, 255))
-            cv2.putText(image, f"Saved: {current_label}", (w-300, h-30), cv2.FONT_HERSHEY_DUPLEX, 0.7, colour, 2)
+            cv2.putText(image, f"Saved: {current_label}", (w-400, h-30), cv2.FONT_HERSHEY_DUPLEX, 0.7, colour, 2)
 
     def run(self, camera_id=0):
         capture = cv2.VideoCapture(camera_id)
