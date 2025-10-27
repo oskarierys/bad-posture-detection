@@ -78,12 +78,10 @@ class PostureModelTrainer:
 
         if test_score >= 0.85:
             print("PERFECT MODEL TRAINED!")
-        if test_score >= 0.7:
+        if test_score >= 0.7 and test_score < 0.85:
             print("OK MODEL TRAINED!")
-        if test_score >= 0.55:
+        if test_score <= 0.55:
             print("BAD MODEL TRAINED!")
-        else:
-            print("TERRIBLE MODEL TRAINED!")
 
         if len(X_train) >= 10:
             cv_fold = min(5, len(X_train) // 2)
@@ -146,7 +144,7 @@ class PostureModelTrainer:
         for i in range(len(importances)):
             idx = indices[i]
             bar = '█' * int(importances[idx] * 50)
-            print(f"{i+1:2d}. {self.feature_names[idx]:25s} {importances[idx]:.4f} {bar}")
+            print(f"{i+1:2d}. {self.features_name[idx]:25s} {importances[idx]:.4f} {bar}")
 
     def save_model(self):
         if self.model is None:

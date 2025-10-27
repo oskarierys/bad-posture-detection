@@ -1,0 +1,20 @@
+{
+   "timestamp": "20251027_192655",
+   "total_samples": 628,
+   "counts": {
+      "correct": 201,
+      "bad_head_position": 206,
+      "bad_upper_body_position": 221
+   },
+   "features": [
+      "shoulder_asymetry",
+      "head_tilt",
+      "head_forward",
+      "shoulder_rotation",
+      "torso_lean",
+      "torso_lean_side",
+      "shoulder_width",
+      "head_to_shoulder_ratio",
+      "avg_visibility"
+   ]
+}
