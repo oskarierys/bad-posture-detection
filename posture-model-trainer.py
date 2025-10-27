@@ -149,13 +149,70 @@ class PostureModelTrainer:
             print(f"{i+1:2d}. {self.feature_names[idx]:25s} {importances[idx]:.4f} {bar}")
 
     def save_model(self):
-        # TODO: Implement model saving
+        if self.model is None:
+            print("No model to save.")
+            return
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        os.makedirs('models', exist_ok=True)
+        model_path = f"models/posture_model_{timestamp}.joblib"
+        joblib.dump(self.model, model_path)
+
+        scaler_path = f"models/scaler_{timestamp}.joblib"
+        joblib.dump(self.scaler, scaler_path)
+
+        metadata = {
+            'timestamp': timestamp,
+            'features': self.features_name,
+            'label_mapping': self.label_mapping,
+            'label_names': self.label_names,
+            'model_path': model_path,
+            'scaler_path': scaler_path,
+            'model_type': 'RandomForestClassifier',
+            'n_features': len(self.features_name)
+        }
+
+        metadata_path = f"models/model_metadata_{timestamp}.json"
+        with open(metadata_path, 'w') as json_file:
+            json.dump(metadata, json_file, indent=2)
+
+        print("MODEL SAVED SUCCESSFULLY!")
+        print(f"Model saved to {model_path}")
+        print(f"Scaler saved to {scaler_path}")
+        print(f"Metadata saved to {metadata_path}")
 
     def run(self):
-        # TODO: Implement the main run logic
+        try:
+            df = self.load_dataset()
+            X, y = self.preprocess_data(df)
+            self.train_model(X, y)
+            self.save_model()
+
+            print("Training process completed successfully.")
+        except Exception as e:
+            print(f"Error during training process: {e}")
+            import traceback
+            traceback.print_exc()
 
 def main():
-    # TODO: Implement main function to run the trainer
+    import glob
+
+    dataset_files = glob.glob('data-set/posture_dataset_*.csv')
+
+    if not dataset_files:
+        print("No dataset files found in 'data-set' directory.")
+        return
+    
+    latest_dataset = max(dataset_files, key=os.path.getctime)
+    print("FOUND DATASET FILE:", latest_dataset)
+
+    df = pd.read_csv(latest_dataset)
+    for label, count in df['label'].value_counts().items():
+        print(f"Label '{label}': {count} samples")
+
+    print("STARTING TRAINING PROCESS...")
+    trainer = PostureModelTrainer(latest_dataset)
+    trainer.run()
 
 if __name__ == "__main__":
     main()
