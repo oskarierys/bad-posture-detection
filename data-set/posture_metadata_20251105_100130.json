@@ -1,10 +1,10 @@
 {
-   "timestamp": "20251027_192655",
-   "total_samples": 628,
+   "timestamp": "20251105_100130",
+   "total_samples": 1666,
    "counts": {
-      "correct": 201,
-      "bad_head_position": 206,
-      "bad_upper_body_position": 221
+      "correct": 400,
+      "bad_head_position": 601,
+      "bad_upper_body_position": 665
    },
    "features": [
       "shoulder_asymetry",

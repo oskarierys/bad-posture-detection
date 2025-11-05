@@ -6,9 +6,84 @@ import json
 import glob
 import os
 from collections import deque
+from datetime import datetime
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
+import pandas as pd
+import threading
 
 mp_drawing = mp.solutions.drawing_utils
 mp_pose = mp.solutions.pose
+
+# class PostureLogger:
+#     #TODO: Implement posture logger for medical purposes
+
+class PosturePlotter:
+    def __init__(self, logger):
+        self.logger = logger
+        self.fig, self.axes = plt.subplots(2, 1, figsize=(12, 10))
+        self.fig.suptitle('Posture Analysis --- Real Time', fontsize=16, fontweight='bold')
+
+        self.colors = {
+            0: 'green',
+            1: 'orange',
+            2: 'red'
+        }
+
+        self.label_names = ['Correct', 'Bad Head', 'Bad Upper Body']
+        plt.ion()
+
+    def update_plots(self):
+        if len(self.logger.timestamps) < 2:
+            return
+        
+        for ax in self.axes:
+            ax.clear()
+
+        ax1 = self.axes[0]
+        times = [(t - self.logger.session_start).total_seconds() / 60 for t in self.logger.timestamps]
+
+        for i in range(len(times) - 1):
+            color = self.colors[self.logger.predictions[i]]
+            ax1.plot(times[i:i+2], self.logger.confidences[i:i+2], color=color, linewidth=2, marker='o')
+
+        ax1.set_ylabel('Posture Class', fontsize=12)
+        ax1.set_xlabel('Time (minutes)', fontsize=12)
+        ax1.set_yticks([0, 1, 2])
+        ax1.set_yticklabels(self.label_names)
+        ax1.grid(True, alpha=0.3)
+        ax1.set_title('Posture Classification Over Time', fontsize=14, fontweight='bold')
+
+        from matplotlib.patches import Patch
+        legend_elements = [
+            Patch(facecolor=self.colors[0], label='Correct'),
+            Patch(facecolor=self.colors[1], label='Bad Head'),
+            Patch(facecolor=self.colors[2], label='Bad Upper Body')
+        ]
+        ax1.legend(handles=legend_elements, loc='upper right')
+
+        ax2 = self.axes[1]
+
+        if len(self.logger.all_probabilities) > 0:
+            probs_array = np.array(self.logger.all_probabilities)
+            ax2.fill_between(times, 0, probs_array[:, 0], 
+                           color=self.colors[0], alpha=0.7, label='Correct')
+            ax2.fill_between(times, probs_array[:, 0], 
+                           probs_array[:, 0] + probs_array[:, 1],
+                           color=self.colors[1], alpha=0.7, label='Bad Head')
+            ax2.fill_between(times, probs_array[:, 0] + probs_array[:, 1], 1,
+                           color=self.colors[2], alpha=0.7, label='Bad Upper Body')
+        
+        ax2.set_ylabel('Probability', fontsize=12)
+        ax2.set_xlabel('Time (minutes)', fontsize=12)
+        ax2.set_ylim([0, 1])
+        ax2.grid(True, alpha=0.3)
+        ax2.set_title('Probability Distribution Over Time', fontsize=12, fontweight='bold')
+        ax2.legend(loc='upper right')
+
+        plt.tight_layout()
+        plt.draw()
+        plt.pause(0.001)
 
 class MLPostureDetector:
     def __init__(self, model_path=None, scaler_path=None, metadata_path=None):
@@ -247,9 +322,6 @@ class MLPostureDetector:
                 key = cv2.waitKey(10) & 0xFF
                 if key == ord('q'):
                     break
-                elif key == ord('f'):
-                    show_features = not show_features
-                    print(f"Feature display: {'ON' if show_features else 'OFF'}")
         
         capture.release()
         cv2.destroyAllWindows()
