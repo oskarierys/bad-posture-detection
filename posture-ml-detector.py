@@ -8,25 +8,24 @@ import os
 from collections import deque
 from datetime import datetime
 import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
 import pandas as pd
-import threading
-# from win10toast import ToastNotifier
 import time
 
 try:
     from win10toast import ToastNotifier
     TOAST_AVAILABLE = True
+    toaster = ToastNotifier()
 except ImportError:
-    print("⚠ win10toast nie zainstalowany. Powiadomienia wyłączone.")
-    print("Zainstaluj: pip install win10toast")
+    print("win10toast not installed.")
+    print("Run: pip install win10toast")
     TOAST_AVAILABLE = False
+    toaster = None
 
 mp_drawing = mp.solutions.drawing_utils
 mp_pose = mp.solutions.pose
 
 class PostureToastNotifier:
-    def __init__(self, log_interval=5 ,toast_interval=5):
+    def __init__(self, log_interval=30 ,toast_interval=600):
         self.log_interval = log_interval
         self.toast_interval = toast_interval
         self.last_log_time = time.time()
@@ -85,6 +84,9 @@ class PostureToastNotifier:
         print(f"{'='*60}\n")
     
     def show_toast_notification(self):
+        if not TOAST_AVAILABLE or toaster is None:
+            return
+        
         elapsed = (datetime.now() - self.session_start).total_seconds()  
         minutes = int(elapsed // 60)
         seconds = int(elapsed % 60)
@@ -99,18 +101,17 @@ class PostureToastNotifier:
 
             Correct: {percentages['Correct']:.1f}%
             Bad Head: {percentages['Bad head position']:.1f}%
-            Bad Upper Body: {percentages['Bad upperbody position']:.1f}%
+            Bad Body: {percentages['Bad upperbody position']:.1f}%
 
             Keep up the good posture!"""
             
             try:
-                toaster = ToastNotifier()
                 toaster.show_toast(
                     "Posture Analysis Report",
                     message,
-                    duration=10,
+                    duration=20,
                     icon_path=None,
-                    threaded=True
+                    threaded=False
                 )
                 print("Toast notification sent!")
             except Exception as e:
@@ -172,72 +173,64 @@ class PostureRaportGenerator:
         os.makedirs(save_dir, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-        # Fig setup
-        fig = plt.figure(figsize=(16, 10))
-        gs = fig.add_gridspec(3, 2, hspace=0.3, wspace=0.3)
+        stats = self.logger.get_statistics()
+        
+        print("Generating plots...")
         
         # 1. Timeline
-        ax1 = fig.add_subplot(gs[0, :])
-        self._plot_timeline(ax1)
+        self._save_timeline(save_dir, timestamp)
         
-        # 2. Pie chart
-        ax2 = fig.add_subplot(gs[1, 0])
-        self._plot_pie_chart(ax2)
+        # 2. Pie Chart
+        self._save_pie_chart(save_dir, timestamp)
         
-        # 3. Bar chart
-        ax3 = fig.add_subplot(gs[1, 1])
-        self._plot_bar_chart(ax3)
+        # 3. Bar Chart
+        self._save_bar_chart(save_dir, timestamp)
         
-        # 4. Probability heatmap
-        ax4 = fig.add_subplot(gs[2, 0])
-        self._plot_probability_heatmap(ax4)
+        # 4. Heatmap
+        self._save_heatmap(save_dir, timestamp)
         
-        # 5. Statistics text
-        ax5 = fig.add_subplot(gs[2, 1])
-        self._plot_statistics(ax5)
+        # Text raport (PNG)
+        self._save_text_report(save_dir, timestamp, stats)
+        
+        # Text raport (TXT)
+        self._save_text_file(save_dir, timestamp, stats)
 
-        stats = self.logger.get_statistics()
-        if stats:
-            duration_min = int(stats['duration_seconds'] // 60)
-            duration_sec = int(stats['duration_seconds'] % 60)
-            fig.suptitle(
-                f'Posture Analysis Report - Session Duration: {duration_min}m {duration_sec}s',
-                fontsize=18, fontweight='bold'
-            )
-        
-        report_path = os.path.join(save_dir, f"posture_report_{timestamp}.png")
-        plt.savefig(report_path, dpi=300, bbox_inches='tight')
-        print(f"Report saved: {report_path}")
-        
-        self._save_individual_plots(save_dir, timestamp)
-        
-        plt.show()
-        return report_path
+        print("Raport generation completed.")
     
-    def _plot_timeline(self, ax):
+    def _save_timeline(self, save_dir, timestamp):
+        fig, ax = plt.subplots(figsize=(14, 6))
+        
         times = [(t - self.logger.session_start).total_seconds() / 60 
                 for t in self.logger.timestamps]
         
         for i in range(len(times) - 1):
             color = self.colors[self.logger.predictions[i]]
             ax.plot(times[i:i+2], self.logger.predictions[i:i+2], 
-                   color=color, linewidth=3, marker='o', markersize=8)
+                   color=color, linewidth=4, marker='o', markersize=10)
         
-        ax.set_ylabel('Posture Classification', fontsize=12, fontweight='bold')
-        ax.set_xlabel('Time (minutes)', fontsize=12)
+        ax.set_ylabel('Posture Classification', fontsize=14, fontweight='bold')
+        ax.set_xlabel('Time (minutes)', fontsize=14)
         ax.set_yticks([0, 1, 2])
-        ax.set_yticklabels(self.label_names)
-        ax.grid(True, alpha=0.3)
-        ax.set_title('Posture Timeline', fontsize=14, fontweight='bold')
+        ax.set_yticklabels(self.label_names, fontsize=12)
+        ax.grid(True, alpha=0.3, linestyle='--')
+        ax.set_title('Posture Timeline', fontsize=16, fontweight='bold', pad=20)
         
         from matplotlib.patches import Patch
         legend_elements = [
             Patch(facecolor=self.colors[i], label=self.label_names[i])
             for i in range(3)
         ]
-        ax.legend(handles=legend_elements, loc='upper right')
+        ax.legend(handles=legend_elements, loc='upper right', fontsize=12)
+        
+        plt.tight_layout()
+        path = os.path.join(save_dir, f"timeline_{timestamp}.png")
+        plt.savefig(path, dpi=300, bbox_inches='tight')
+        plt.close()
+        print(f"Timeline saved: {path}")
     
-    def _plot_pie_chart(self, ax):
+    def _save_pie_chart(self, save_dir, timestamp):
+        fig, ax = plt.subplots(figsize=(10, 8))
+        
         labels = list(self.logger.counts.keys())
         sizes = list(self.logger.counts.values())
         colors_pie = [self.colors[i] for i in range(3)]
@@ -245,101 +238,199 @@ class PostureRaportGenerator:
         wedges, texts, autotexts = ax.pie(
             sizes, labels=labels, colors=colors_pie,
             autopct='%1.1f%%', startangle=90,
-            textprops={'fontsize': 11, 'fontweight': 'bold'}
+            textprops={'fontsize': 14, 'fontweight': 'bold'},
+            explode=(0.05, 0, 0)
         )
         
         for autotext in autotexts:
             autotext.set_color('white')
-            autotext.set_fontsize(12)
+            autotext.set_fontsize(16)
             autotext.set_fontweight('bold')
         
-        ax.set_title('Overall Posture Distribution', fontsize=12, fontweight='bold')
+        ax.set_title('Overall Posture Distribution', fontsize=18, fontweight='bold', pad=20)
+        
+        plt.tight_layout()
+        path = os.path.join(save_dir, f"pie_chart_{timestamp}.png")
+        plt.savefig(path, dpi=300, bbox_inches='tight')
+        plt.close()
+        print(f"Pie chart saved: {path}")
     
-    def _plot_bar_chart(self, ax):
+    def _save_bar_chart(self, save_dir, timestamp):
+        fig, ax = plt.subplots(figsize=(12, 7))
+        
         labels = list(self.logger.counts.keys())
         sizes = list(self.logger.counts.values())
         colors_bar = [self.colors[i] for i in range(3)]
         
-        bars = ax.bar(labels, sizes, color=colors_bar, edgecolor='black', linewidth=2)
-        ax.set_ylabel('Frame Count', fontsize=12, fontweight='bold')
-        ax.set_title('Posture Frequency', fontsize=12, fontweight='bold')
-        ax.grid(axis='y', alpha=0.3)
+        bars = ax.bar(labels, sizes, color=colors_bar, edgecolor='black', linewidth=2, width=0.6)
+        ax.set_ylabel('Frame Count', fontsize=14, fontweight='bold')
+        ax.set_xlabel('Posture Type', fontsize=14, fontweight='bold')
+        ax.set_title('Posture Frequency', fontsize=18, fontweight='bold', pad=20)
+        ax.grid(axis='y', alpha=0.3, linestyle='--')
         
         for bar in bars:
             height = bar.get_height()
             ax.text(bar.get_x() + bar.get_width()/2., height,
                    f'{int(height)}',
-                   ha='center', va='bottom', fontweight='bold', fontsize=11)
+                   ha='center', va='bottom', fontweight='bold', fontsize=14)
+        
+        plt.tight_layout()
+        path = os.path.join(save_dir, f"bar_chart_{timestamp}.png")
+        plt.savefig(path, dpi=300, bbox_inches='tight')
+        plt.close()
+        print(f"Bar chart saved: {path}")
     
-    def _plot_probability_heatmap(self, ax):
-        if len(self.logger.all_probabilities) > 0:
-            probs_array = np.array(self.logger.all_probabilities).T
-            
-            im = ax.imshow(probs_array, aspect='auto', cmap='RdYlGn', 
-                          interpolation='nearest', vmin=0, vmax=1)
-            
-            ax.set_yticks([0, 1, 2])
-            ax.set_yticklabels(self.label_names)
-            ax.set_xlabel('Time Points (30s intervals)', fontsize=11)
-            ax.set_title('Probability Heatmap Over Time', fontsize=12, fontweight='bold')
-            
-            plt.colorbar(im, ax=ax, label='Probability')
+    def _save_heatmap(self, save_dir, timestamp):
+        if len(self.logger.all_probabilities) == 0:
+            return
+        
+        fig, ax = plt.subplots(figsize=(14, 6))
+        
+        probs_array = np.array(self.logger.all_probabilities).T
+        
+        im = ax.imshow(probs_array, aspect='auto', cmap='RdYlGn', 
+                      interpolation='nearest', vmin=0, vmax=1)
+        
+        ax.set_yticks([0, 1, 2])
+        ax.set_yticklabels(self.label_names, fontsize=12)
+        ax.set_xlabel('Time Points (30s intervals)', fontsize=14, fontweight='bold')
+        ax.set_ylabel('Posture Type', fontsize=14, fontweight='bold')
+        ax.set_title('Probability Heatmap Over Time', fontsize=18, fontweight='bold', pad=20)
+        
+        cbar = plt.colorbar(im, ax=ax, label='Probability')
+        cbar.ax.tick_params(labelsize=11)
+        
+        plt.tight_layout()
+        path = os.path.join(save_dir, f"heatmap_{timestamp}.png")
+        plt.savefig(path, dpi=300, bbox_inches='tight')
+        plt.close()
+        print(f"Heatmap saved: {path}")
     
-    def _plot_statistics(self, ax):
+    def _save_text_report(self, save_dir, timestamp, stats):
+        if stats is None:
+            return
+        
+        fig, ax = plt.subplots(figsize=(12, 10))
         ax.axis('off')
         
-        stats = self.logger.get_statistics()
-        if stats:
-            duration_min = int(stats['duration_seconds'] // 60)
-            duration_sec = int(stats['duration_seconds'] % 60)
-            
-            stats_text = f"""
-╔═══════════════════════════════════╗
-║      SESSION STATISTICS           ║
-╚═══════════════════════════════════╝
+        duration_min = int(stats['duration_seconds'] // 60)
+        duration_sec = int(stats['duration_seconds'] % 60)
+        
+        report_text = f"""
+╔═══════════════════════════════════════════════════════╗
+║                                                       ║
+║           POSTURE ANALYSIS SESSION REPORT             ║
+║                                                       ║
+╚═══════════════════════════════════════════════════════╝
 
-⏱  Duration: {duration_min}m {duration_sec}s
-📊 Total Frames: {stats['total_frames']:,}
 
-📈 POSTURE BREAKDOWN:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Session Date: {datetime.now().strftime('%Y-%m-%d')}
+Session Time: {datetime.now().strftime('%H:%M:%S')}
+Duration: {duration_min} minutes {duration_sec} seconds
 
-Correct Posture:
-   {stats['percentages']['Correct']:.1f}% ({stats['counts']['Correct']:,} frames)
-   {'█' * int(stats['percentages']['Correct'] / 5)}
 
-Bad Head Position:
-   {stats['percentages']['Bad head position']:.1f}% ({stats['counts']['Bad head position']:,} frames)
-   {'█' * int(stats['percentages']['Bad head position'] / 5)}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                    OVERALL STATISTICS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Bad Upper Body:
-   {stats['percentages']['Bad upperbody position']:.1f}% ({stats['counts']['Bad upperbody position']:,} frames)
-   {'█' * int(stats['percentages']['Bad upperbody position'] / 5)}
+Total Frames Analyzed: {stats['total_frames']:,}
+Sampling Interval: Every 30 seconds
+Total Snapshots: {len(self.logger.timestamps)}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Report generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-            """
-            
-            ax.text(0.5, 0.5, stats_text,
-                   ha='center', va='center',
-                   fontsize=10, fontfamily='monospace',
-                   bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.8))
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                   POSTURE BREAKDOWN
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CORRECT POSTURE:
+   Percentage: {stats['percentages']['Correct']:.1f}%
+   Frame Count: {stats['counts']['Correct']:,}
+   {'█' * int(stats['percentages']['Correct'] / 2)}
+
+
+BAD HEAD POSITION:
+   Percentage: {stats['percentages']['Bad head position']:.1f}%
+   Frame Count: {stats['counts']['Bad head position']:,}
+   {'█' * int(stats['percentages']['Bad head position'] / 2)}
+
+
+BAD UPPER BODY POSITION:
+   Percentage: {stats['percentages']['Bad upperbody position']:.1f}%
+   Frame Count: {stats['counts']['Bad upperbody position']:,}
+   {'█' * int(stats['percentages']['Bad upperbody position'] / 2)}
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                    RECOMMENDATIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+"""
+        
+        if stats['percentages']['Correct'] >= 70:
+            report_text += "\nExcellent! Maintain your good posture habits.\n"
+        elif stats['percentages']['Correct'] >= 50:
+            report_text += "\nGood progress. Focus on maintaining posture longer.\n"
+        else:
+            report_text += "\nNeeds improvement. Take regular breaks and adjust setup.\n"
+        
+        if stats['percentages']['Bad head position'] > 20:
+            report_text += "• Adjust monitor height - eyes level with top 1/3\n"
+        
+        if stats['percentages']['Bad upperbody position'] > 20:
+            report_text += "• Check chair back support and sitting angle\n"
+        
+        report_text += f"\n\n{'━'*55}\nReport generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n{'━'*55}"
+        
+        ax.text(0.5, 0.5, report_text,
+               ha='center', va='center',
+               fontsize=11, fontfamily='monospace',
+               bbox=dict(boxstyle='round,pad=1.5', facecolor='#E8F4F8', 
+                        edgecolor='#2196F3', linewidth=3, alpha=0.9))
+        
+        plt.tight_layout()
+        path = os.path.join(save_dir, f"summary_{timestamp}.png")
+        plt.savefig(path, dpi=300, bbox_inches='tight', facecolor='white')
+        plt.close()
+        print(f"Summary image saved: {path}")
     
-    def _save_individual_plots(self, save_dir, timestamp):
-        fig, ax = plt.subplots(figsize=(12, 6))
-        self._plot_timeline(ax)
-        plt.tight_layout()
-        plt.savefig(os.path.join(save_dir, f"timeline_{timestamp}.png"), dpi=200)
-        plt.close()
+    def _save_text_file(self, save_dir, timestamp, stats):
+        if stats is None:
+            return
         
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
-        self._plot_pie_chart(ax1)
-        self._plot_bar_chart(ax2)
-        plt.tight_layout()
-        plt.savefig(os.path.join(save_dir, f"distribution_{timestamp}.png"), dpi=200)
-        plt.close()
+        duration_min = int(stats['duration_seconds'] // 60)
+        duration_sec = int(stats['duration_seconds'] % 60)
         
-        print(f"Individual plots saved in {save_dir}/")
+        report_lines = [
+            "="*70,
+            "POSTURE ANALYSIS SESSION REPORT",
+            "="*70,
+            "",
+            f"Session Date: {datetime.now().strftime('%Y-%m-%d')}",
+            f"Session Time: {datetime.now().strftime('%H:%M:%S')}",
+            f"Duration: {duration_min}m {duration_sec}s",
+            "",
+            "="*70,
+            "OVERALL STATISTICS",
+            "="*70,
+            f"Total Frames: {stats['total_frames']:,}",
+            f"Snapshots: {len(self.logger.timestamps)}",
+            "",
+            "="*70,
+            "POSTURE BREAKDOWN",
+            "="*70,
+            f"Correct Posture:        {stats['percentages']['Correct']:6.1f}% ({stats['counts']['Correct']:,} frames)",
+            f"Bad Head Position:      {stats['percentages']['Bad head position']:6.1f}% ({stats['counts']['Bad head position']:,} frames)",
+            f"Bad Upper Body:         {stats['percentages']['Bad upperbody position']:6.1f}% ({stats['counts']['Bad upperbody position']:,} frames)",
+            "",
+            "="*70,
+            f"Report generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            "="*70
+        ]
+        
+        path = os.path.join(save_dir, f"summary_{timestamp}.txt")
+        with open(path, 'w', encoding='utf-8') as f:
+            f.write('\n'.join(report_lines))
+        
+        print(f"Summary text saved: {path}")
 
 class MLPostureDetector:
     def __init__(self, model_path=None, scaler_path=None, metadata_path=None):
@@ -600,7 +691,7 @@ class MLPostureDetector:
 if __name__ == "__main__":
     try:
         detector = MLPostureDetector()
-        detector.run(camera_id=0, enable_logging=True, log_interval=5, toast_interval=5)
+        detector.run(camera_id=0, enable_logging=True, log_interval=30, toast_interval=600)
     except FileNotFoundError as e:
         print(f"\n{e}")
         print("\nSteps to follow:")
