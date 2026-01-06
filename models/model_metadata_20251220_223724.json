@@ -1,0 +1,28 @@
+{
+  "timestamp": "20251220_223724",
+  "features": [
+    "shoulder_asymetry",
+    "head_tilt",
+    "head_forward",
+    "shoulder_rotation",
+    "torso_lean",
+    "torso_lean_side",
+    "shoulder_width",
+    "head_to_shoulder_ratio",
+    "avg_visibility"
+  ],
+  "label_mapping": {
+    "correct": 0,
+    "bad_head_position": 1,
+    "bad_upper_body_position": 2
+  },
+  "label_names": [
+    "Correct",
+    "Bad head position",
+    "Bad upperbody position"
+  ],
+  "model_path": "models/posture_model_20251220_223724.joblib",
+  "scaler_path": "models/scaler_20251220_223724.joblib",
+  "model_type": "RandomForestClassifier",
+  "n_features": 9
+}

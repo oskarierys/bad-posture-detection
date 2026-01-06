@@ -48,7 +48,7 @@ class PostureModelTrainer:
     def train_model(self, X, y, test_size=0.2):
         print("Training model...")
 
-        test_size = max(0.1, 1.0 / len(X))
+        test_size = 0.2
 
         try:
             X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=42, stratify=y)
