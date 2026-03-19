@@ -281,7 +281,7 @@ Nine geometric features computed from landmarks:
 
 If you use this system in your research, please cite:
 ```bibtex
-@mastersthesis{yourname2024posture,
+@mastersthesis{oskkie2025posture,
   title={Real-Time Posture Detection System Using Machine Learning},
   author={Oskar Kierys},
   year={2025},
